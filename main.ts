@@ -42,8 +42,6 @@ export default class MyTagPlugin extends Plugin {
 
 			const content = tags.join(" ") + "\n\n"; 
 
-			console.log('addedTags', tags); 
-
 			const currentContent = await this.app.vault.read(file);
 			await this.app.vault.modify(file, content + currentContent);
 	}
@@ -72,6 +70,6 @@ export default class MyTagPlugin extends Plugin {
 	}
 
 	onunload() {
-			console.log('MyTagPlugin unloaded');
+			console.log('Auto taaging unloaded');
 	}
 }

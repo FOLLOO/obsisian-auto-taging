@@ -3,8 +3,8 @@
 	"name": "Auto Taging",
 	"version": "1.0.0",
 	"minAppVersion": "0.9.7",
-	"description": "Automatically adds tags to new notes based on their path.",
+	"description": "Automatically adds tags to the currently open Markdown file based on its path",
 	"author": "Sairommef",
-	"authorUrl": "https://sairommef.ru",
+	"authorUrl": "https://github.com/FOLLOO",
 	"isDesktopOnly": false
 }
