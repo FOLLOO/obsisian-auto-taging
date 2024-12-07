@@ -19,7 +19,6 @@ export default class MyTagPlugin extends Plugin {
 
 	async addTagsToFile(file: TFile) {
 			const pathParts = this.getPathParts(file.path);
-			
 			const tags = pathParts.map((part, i) => {
 				let tag;
 		
@@ -30,16 +29,13 @@ export default class MyTagPlugin extends Plugin {
 						case part === pathParts[i - 1]:
 								tag = null;
 								break;
-						case i === 0:
-								tag = null;
-								break;
 						default:
 								tag = `#${part.replace(' ', '-')}`;
 								break;
 				}
 				return tag;
 		}).filter(tag => tag !== null);
-
+			console.log(tags)
 			const content = tags.join(" ") + "\n\n"; 
 
 			const currentContent = await this.app.vault.read(file);
