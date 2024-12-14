@@ -23,19 +23,26 @@ export default class AutoTagingPlugin extends Plugin {
 			await this.loadData
 		);
 
-		// Добавляем команду для добавления тегов в открытый файл
 		this.addCommand({
-			id: "add-tags-to-open-file",
-			name: "Add tags to the current file",
-			callback: () => {
-				const activeFile = this.app.workspace.getActiveFile();
-				if (activeFile instanceof TFile) {
-					this.addTagsToFile(activeFile);
-				} else {
-					new Notice("There is no open Markdown file.")
-				}
+			id: "add-tags-to-open-file", 
+			name: "Add tags to the current file", 
+			checkCallback: (checking: boolean) => { 
+					const activeFile = this.app.workspace.getActiveFile();
+					
+					if (activeFile instanceof TFile) { 
+							if (!checking) { 
+									this.addTagsToFile(activeFile); 
+							}
+							return true; 
+					}
+					
+					if (!checking) { 
+							new Notice("There is no open Markdown file."); 
+					}
+					return false; 
 			},
 		});
+		
 		this.addSettingTab(new AutoTagingSettingsTab(this.app, this));
 	}
 
