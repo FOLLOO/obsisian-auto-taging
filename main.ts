@@ -1,71 +1,169 @@
-import { Plugin, TFile } from 'obsidian';
+import { Plugin, TFile, Setting, PluginSettingTab, App, Notice } from "obsidian";
 
-export default class MyTagPlugin extends Plugin {
-	onload() {
-			// Добавляем команду для добавления тегов в открытый файл
-			this.addCommand({
-					id: 'add-tags-to-open-file',
-					name: 'Добавить теги в текущий файл',
-					callback: () => {
-							const activeFile = this.app.workspace.getActiveFile();
-							if (activeFile instanceof TFile) {
-									this.addTagsToFile(activeFile);
-							} else {
-									console.log('Нет открытого Markdown файла.');
-							}
-					}
-			});
+interface AutoTagingSettings {
+	addCurrentFile: boolean;
+	ingnoreRootFile: boolean;
+	tagSeparator: string;
+}
+
+
+const DEFAULT_SETTINGS: AutoTagingSettings = {
+	addCurrentFile: true,
+	ingnoreRootFile: true,
+	tagSeparator: "default",
+};
+
+export default class AutoTagingPlugin extends Plugin {
+	settings: AutoTagingSettings;
+
+	async onload() {
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			await this.loadData
+		);
+
+		// Добавляем команду для добавления тегов в открытый файл
+		this.addCommand({
+			id: "add-tags-to-open-file",
+			name: "Add tags to the current file",
+			callback: () => {
+				const activeFile = this.app.workspace.getActiveFile();
+				if (activeFile instanceof TFile) {
+					this.addTagsToFile(activeFile);
+				} else {
+					new Notice("There is no open Markdown file.")
+				}
+			},
+		});
+		this.addSettingTab(new AutoTagingSettingsTab(this.app, this));
 	}
 
+	private deafutlTag(tag: string){
+		var hashtag = tag.split(' ').reduce(function(tag, word) {
+			return tag + word.charAt(0).toUpperCase() + word.substring(1);
+		}, '#');
+		return hashtag;
+	}
+
+	
 	async addTagsToFile(file: TFile) {
-			const pathParts = this.getPathParts(file.path);
-			const tags = pathParts.map((part, i) => {
+		const pathParts = this.getPathParts(file.path);
+
+		const tags = pathParts
+			.map((part, i) => {
 				let tag;
-		
-				switch (true) { 
-						case part.endsWith('.md'):
-								tag = null;
-								break;
-						case part === pathParts[i - 1]:
-								tag = null;
-								break;
-						default:
-								tag = `#${part.replace(' ', '-')}`;
-								break;
+				switch (true) {
+					case this.settings.addCurrentFile && part.endsWith(".md"):
+						if(this.settings.tagSeparator === "default"){
+							let prev = part.replace('.md', '')
+							tag = this.deafutlTag(prev) 
+						}else{
+							let prev = part.replace(/ /g, this.settings.tagSeparator)
+							tag = "#" + prev.replace(".md", "");
+						} 
+						break;
+					case this.settings.ingnoreRootFile &&
+						part === pathParts[i - 1]:
+						tag = null;
+						break;
+					default:
+						tag = `#${part.replace(" ", this.settings.tagSeparator)}`; 
+						break;
 				}
 				return tag;
-		}).filter(tag => tag !== null);
-			console.log(tags)
-			const content = tags.join(" ") + "\n\n"; 
-
-			const currentContent = await this.app.vault.read(file);
-			await this.app.vault.modify(file, content + currentContent);
+			})
+			.filter((tag) => tag !== null);
+		const content = tags.join(" ") + "\n\n";
+		const currentContent = await this.app.vault.read(file);
+		await this.app.vault.modify(file, content + currentContent);
 	}
 
 	private getPathParts(path: string): string[] {
-			if (path === '/') {
-					return ['Vault Root'];
-			} else {
-					const parts = path.split('/');
+		
+		
+		if (path === "/") {
+			return ["Vault Root"];
+		} else {
+			const parts = path.split("/");
 
-					for(let i = parts.length; i <= 1; i--){
-						switch (true) {
-							case parts[i].endsWith('.md'):
-									parts.splice(i, 1);
-									break;
-							case parts[i] === parts[i - 1]:
-									parts.splice(i, 1);
-									break; // Прерываем выполнение switch после удаления
-							case i === 0: 
-									parts.splice(i, 1);
-									break; // Прерываем выполнение switch после удаления
-						}
-					}
-					return parts.filter(part => part !== ''); // Удаляем пустые части
+			for (let i = parts.length; i <= 1; i--) {
+				switch (true) {
+					case this.settings.addCurrentFile && parts[i].endsWith(".md"):
+						if(this.settings.tagSeparator === "default"){
+							let prev = parts[i].replace('.md', '')
+							parts[i] = this.deafutlTag(prev) 
+						}else{
+							let prev = parts[i].replace(/ /g, this.settings.tagSeparator)
+							parts[i] = "#" + prev.replace(".md", "");
+						} 
+						break;
+					case this.settings.ingnoreRootFile && parts[i] === parts[i - 1]:
+						parts.splice(i, 1); // тоже самое что и в первом варианте
+						break;
+				}
 			}
+			return parts.filter((part) => part !== "");
+		}
 	}
 
 	onunload() {
-			console.log('Auto taaging unloaded');
+		new Notice("Auto taaging unloaded")
+	}
+}
+
+class AutoTagingSettingsTab extends PluginSettingTab {
+	plugin: AutoTagingPlugin;
+
+	constructor(app: App, plugin: AutoTagingPlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		const { containerEl } = this;
+
+		containerEl.empty();
+		containerEl.createEl('h2', { text: 'Auto Taging: Settings' });
+
+		new Setting(containerEl)
+			.setName("Add the current file")
+			.setDesc("Toggle this option to enable automatic tagging of the document you are currently editing. When enabled, the plugin will extract and add relevant tags based on the file name and path.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.addCurrentFile)
+					.onChange(async (value) => {
+						this.plugin.settings.addCurrentFile = value;
+						await this.plugin.saveData(this.plugin.settings);
+					})
+			);
+		new Setting(containerEl)
+			.setName("Ignore root path")
+			.setDesc("Ignore the root path when tagging. Example: 'Obsidian/my note' will replace to #myNote else #Obsidian #myNote")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.ingnoreRootFile)
+					.onChange(async (value) => {
+						this.plugin.settings.ingnoreRootFile = value;
+						await this.plugin.saveData(this.plugin.settings);
+					})
+			);
+		new Setting(containerEl)
+			.setName("Enter tag separator")
+			.setDesc(
+				"Enter tag sepatator. Exmaple: ' - ' will change ('default' vlaue) #ExampleTag to #Exmaple-tag"
+			)
+			.addText((text) =>
+				text
+					.setValue(this.plugin.settings.tagSeparator)
+					.setPlaceholder("Enter tag separator")
+					.onChange(async (value) => {
+						this.plugin.settings.tagSeparator = value;
+						await this.plugin.saveData(this.plugin.settings);
+					})
+			);
+
+			containerEl.createEl('p', { text: 'For instructions on how to use this plugin, check out the README on GitHub' });	
+			containerEl.createEl('a', {attr: {href:"https://github.com/FOLLOO/obsisian-auto-taging"},text:"GitHub"})
 	}
 }
